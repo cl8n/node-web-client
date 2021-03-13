@@ -1,2 +1,2 @@
 export * as Http from './Http';
-export * from './WebClient';
+export { default } from './WebClient';

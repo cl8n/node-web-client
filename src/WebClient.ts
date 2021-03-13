@@ -2,7 +2,7 @@ import type { IncomingHttpHeaders } from 'http';
 import { request as requestHttp } from 'http';
 import type { RequestOptions as InternalRequestOptions } from 'https';
 import { request as requestHttps } from 'https';
-import type * as Http from './Http';
+import * as Http from './Http';
 
 interface InternalResponse {
   /**
@@ -62,6 +62,11 @@ interface WebClientOptions {
    * @defaultValue `"GET"`
    */
   defaultMethod?: Http.Method;
+
+  /**
+   * Rate limiter that wraps the request function.
+   */
+  limiter?: (fn: typeof asyncRequest) => typeof asyncRequest;
 }
 
 function hasProtocol(url: string): boolean {
@@ -72,7 +77,7 @@ function hasSecureProtocol(url: string): boolean {
   return url.startsWith('https:');
 }
 
-async function requestWrapped(
+async function asyncRequest(
   url: string,
   options: Readonly<InternalRequestOptions>,
   body: unknown,
@@ -92,8 +97,10 @@ async function requestWrapped(
         resolve({
           headers: response.headers,
           rawData: result,
-          statusCode: response.statusCode as number,
-          statusMessage: response.statusMessage as string,
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          statusCode: response.statusCode!,
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          statusMessage: response.statusMessage!,
           trailers: response.trailers,
         });
       });
@@ -116,7 +123,7 @@ function fillRequestOptionDefaults(
   clientOptions: Readonly<WebClientOptions>,
 ): Readonly<RequestOptions> {
   const newOptions: RequestOptions = {
-    method: clientOptions.defaultMethod ?? 'GET',
+    method: clientOptions.defaultMethod ?? Http.Method.get,
     ...options,
   };
 
@@ -138,17 +145,17 @@ function fillRequestOptionDefaults(
 /**
  * A client used to communicate over HTTP(S).
  */
-export class WebClient {
-  /**
-   * Web client options.
-   */
-  public options: WebClientOptions;
+export default class WebClient {
+  private readonly options: WebClientOptions;
+  private readonly requestFn: typeof asyncRequest;
 
   public constructor(options: Readonly<WebClientOptions>) {
     if (options.baseUrl != null && !hasProtocol(options.baseUrl)) {
       throw new TypeError("`baseUrl` doesn't include a protocol");
     }
 
+    this.requestFn =
+      options.limiter != null ? options.limiter(asyncRequest) : asyncRequest;
     this.options = options;
   }
 
@@ -172,7 +179,7 @@ export class WebClient {
     options: Readonly<RequestOptions>,
   ): Promise<Readonly<Response>> {
     const filledOptions = fillRequestOptionDefaults(options, this.options);
-    const internalResponse = await requestWrapped(
+    const internalResponse = await this.requestFn(
       filledOptions.url,
       { method: filledOptions.method },
       undefined,
