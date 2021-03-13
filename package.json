@@ -1,5 +1,5 @@
 {
-  "name": "web-client",
+  "name": "@cl8n/web-client",
   "version": "0.0.1",
   "author": "clayton <me@clayton.cc>",
   "bugs": "https://github.com/cl8n/node-web-client/issues",
@@ -41,5 +41,8 @@
     "dist"
   ],
   "main": "dist/index.js",
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  }
 }
